@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% include 'title' %}
+    {% include 'asset' %}
+
+</head>
+<body>
+
+<div class="page-container">
+    {% include 'sidebar' %}
+
+    <div class="main-container">
+        {% include 'crumbs' %}
+
+        <div class="content">
+            <div class="block">
+                <div class="block-content">
+                    <div id="xima-table"></div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+{% include 'script' %}
+
+</body>
+</html>

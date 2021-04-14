@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>成功提示</title>
+
+    {% include 'asset' %}
+
+</head>
+<body>
+
+<div class="page-container">
+
+    <div class="main-container">
+        <div class="content" style="width: 800px;margin: 0 auto">
+            <div class="block">
+                <div class="block-header block-title bg-gray-lighter">
+                    成功提示
+                </div>
+                <div class="block-content">
+                    <i style="color: #2cc155;font-size: 42px;display: inline-block;vertical-align: middle" class="fa fa-fw fa-check-square"></i>
+                    <span style="font-size: 16px">{{ $message }}</span>
+                    <hr>
+                    <div>页面将{{ $second }}秒后自动跳转，如果没有跳转你可以<a href="{{ empty($url) ? 'javascript:window.history.back();' : $url }}"> 点击这里手动跳转</a></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% include 'script' %}
+<script>
+    $(function () {
+        setTimeout(function () {
+            var url = '{{ $url }}';
+            if(url === '') {
+                window.history.back();
+            }else {
+                window.location.href = '{{ $url }}'
+            }
+        }, {{ $second }} * 1000)
+    })
+</script>
+</body>
+</html>

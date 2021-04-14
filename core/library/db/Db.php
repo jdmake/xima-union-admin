@@ -1,0 +1,375 @@
+<?php
+// +----------------------------------------------------------------------
+// | Author: jdmake <503425061@qq.com>
+// +----------------------------------------------------------------------
+// | Date: 2021/3/17
+// +----------------------------------------------------------------------
+
+
+namespace library\db;
+
+
+class Db
+{
+    /** @var Db 实例对象 */
+    private static $instance;
+
+    /** @var DbDrive */
+    private $connect;
+
+    /** @var array 参数表 */
+    private $options = [
+        'table' => '',
+        'where' => [],
+        'field' => '*',
+        'limit' => '',
+        'order' => '',
+        'parameter' => [],
+        'insert_field' => [],
+        'insert_values' => [],
+        'update_set' => []
+    ];
+
+    /** @var int 操作方式 */
+    private $action_type = 0;
+    const ACTION_TYPE_SELECT = 1;
+    const ACTION_TYPE_INSERT = 2;
+    const ACTION_TYPE_UPDATE = 3;
+    const ACTION_TYPE_DELETE = 4;
+
+
+    /** @var string SQL语句 */
+    private $query = '';
+
+
+    /**
+     * 构造函数
+     * Db constructor.
+     * @param DbDrive $connect
+     */
+    public function __construct(DbDrive $connect)
+    {
+        $this->connect = $connect;
+    }
+
+
+    /**
+     * 创建实体
+     */
+    public static function create()
+    {
+        if (!self::$instance instanceof Db) {
+            $config = include APP_CORE . 'config.php';
+            self::$instance = new Db(new DbDrive($config['database']));
+        }
+
+        return self::$instance;
+    }
+
+    /**
+     * 设置查询的表名称
+     * @param $table_name
+     * @return $this
+     */
+    public function table($table_name)
+    {
+        $this->options['table'] = $table_name;
+
+        return $this;
+    }
+
+    /**
+     * 设置字段
+     * @param string $field
+     */
+    public function field($field = "*")
+    {
+        $this->options['field'] = $field;
+
+        return $this;
+    }
+
+    /**
+     * 设置查询条件
+     * @param string $field
+     * @return $this
+     */
+    public function where($where)
+    {
+        $this->options['where'][] = $where;
+
+        return $this;
+    }
+
+    /**
+     * 设置查询预处理参数
+     * @param array $parameter
+     * @return Db
+     */
+    public function setParameter(array $parameter = [])
+    {
+        $this->options['parameter'] = $parameter;
+        return $this;
+    }
+
+    /**
+     * 添加查询预处理参数
+     * @param array $parameter
+     * @return Db
+     */
+    public function addParameter($name, $value)
+    {
+        $this->options['parameter'][$name] = $value;
+        return $this;
+    }
+
+    /**
+     * 设置排序
+     * @param string $order
+     */
+    public function order($order)
+    {
+        $this->options['order'] = 'order by ' . str_replace('order by ', '', $order);
+
+        return $this;
+    }
+
+    /**
+     * 设置查询数量
+     * @param string $order
+     */
+    public function limit($limit)
+    {
+        $this->options['limit'] = 'limit ' . $limit;
+
+        return $this;
+    }
+
+    /**
+     * 返回结果集
+     */
+    public function getResult()
+    {
+        $this->action_type = Db::ACTION_TYPE_SELECT;
+        $this->buildQuery();
+        // 执行查询
+        $this->connect->query($this->query, $this->options['parameter']);
+        $this->clear();
+        return $this->connect->getfetchAll();
+    }
+
+    /**
+     * 查找一行数据
+     */
+    public function find()
+    {
+        $result = $this->getResult();
+        return count($result) > 0 ? $result[0] : null;
+    }
+
+    /**
+     * 插入数据
+     * @param array $array
+     */
+    function insert(array $data = [])
+    {
+        foreach ($data as $k => $item) {
+            $this->options['parameter'][$k] = $item;
+            $this->options['insert_values'][] = ':' . $k;
+        }
+        $this->options['insert_field'] = array_keys($data);
+
+        $this->action_type = Db::ACTION_TYPE_INSERT;
+        $this->buildQuery();
+
+        // 执行插入
+        $this->connect->query($this->query, $this->options['parameter']);
+        $this->clear();
+        $res = $this->connect->insert();
+        return $res;
+    }
+
+    /**
+     * 更新数据
+     */
+    public function update(array $data = [])
+    {
+        foreach ($data as $k => $item) {
+            $this->options['parameter'][$k] = $item;
+            $this->options['update_set'][] = "{$k}=:{$k}";
+        }
+        $this->action_type = Db::ACTION_TYPE_UPDATE;
+        $this->buildQuery();
+
+        // 执行更新
+        $this->connect->query($this->query, $this->options['parameter']);
+        $this->clear();
+        return $this->connect->update();
+    }
+
+    /**
+     * 删除数据
+     */
+    public function delete()
+    {
+        $this->action_type = Db::ACTION_TYPE_DELETE;
+        $this->buildQuery();
+
+        // 执行更新
+        $this->connect->query($this->query, $this->options['parameter']);
+        $this->clear();
+        return $this->connect->update();
+    }
+
+    /**
+     * 获取数量
+     */
+    public function count()
+    {
+        $this->options['limit'] = '';
+        return count($this->getResult());
+    }
+
+    /**
+     * 分页
+     */
+    public function pagination($page, $limit = 15, array $option = [])
+    {
+        $path_info = parse_url($_SERVER['REQUEST_URI'])['path'];
+
+        $path = '';
+        if (!isset($option['style'])) {
+            $path = isset($option['path']) ? $option['path'] : $path_info . '?do=' . CURRENT_DO . '&' . @http_build_query($option['query']);
+        }
+
+        $limit_page = ($page == 1 ? 0 : $page - 1) * $limit;
+
+        $this->action_type = Db::ACTION_TYPE_SELECT;
+        $this->limit("{$limit_page},{$limit}");
+        $this->buildQuery();
+        // 执行查询
+        $this->connect->query($this->query, $this->options['parameter']);
+        $results = $this->connect->getfetchAll();
+        $total = $this->count();
+
+        return [
+            'items' => $results,
+            'page_size' => ceil($total / $limit),
+            'total' => $total,
+            'page' => call_user_func(function () use ($path, $page, $total, $limit, $option) {
+                $curPage = isset($page) ? $page : 1;
+                //最大的页码数
+                $rowsPerPage = 10;
+                //获取数据
+                $offset = ($curPage - 1) * $rowsPerPage;
+                //总页数
+                $totalpage = ceil($total / $limit);
+                //存储页面字符串
+                $pageNumString = '';
+                if ($curPage <= 5) {
+                    $begin = 1;
+                    $end = $totalpage >= 10 ? 10 : $totalpage;
+                } else {
+                    $end = $curPage + 5 > $totalpage ? $totalpage : $curPage + 5;
+                    $begin = $end - 9 <= 1 ? 1 : $end - 9;
+                }
+                //上一页
+                $prev = $curPage - 1 <= 1 ? 1 : $curPage - 1;
+                $pageNumString .= "<li><a href='{$path}" . (!isset($option['style']) ? '&page=1' : str_replace('{page}', '1', $option['style'])) . "'>首页</a></li>";
+                $pageNumString .= "<li><a href='{$path}" . (!isset($option['style']) ? '&page=' . $prev : str_replace('{page}', $prev, $option['style'])) . "'>上一页</a></li>";
+
+                //根据起始页与终止页将当前页面的页码显示出来
+                for ($i = $begin; $i <= $end; $i++) {
+                    //使用if实现高亮显示当前点击的页码
+                    //这是 bootstrap的全局样式
+                    if ($curPage == $i) {
+                        $pageNumString .= "<li class='active'><a href='" . (!isset($option['style']) ? '&page=' . $i : str_replace('{page}', $i, $option['style'])) . "'>$i</a></li>";
+                    } else {
+                        $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $i : str_replace('{page}', $i, $option['style'])) . "'>$i</a></li>";
+                    }
+                }
+                //实现下一页
+                $next = $curPage + 1 >= $totalpage ? $totalpage : $curPage + 1;
+                $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $next : str_replace('{page}', $next, $option['style'])) . "'>下一页</a></li>";
+                $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $totalpage : str_replace('{page}', $totalpage, $option['style'])) . "'>尾页</a></li>";
+
+                return $pageNumString;
+            })
+        ];
+    }
+
+    /**
+     * 执行SQL语句
+     * @param $sql
+     */
+    public function exec($sql)
+    {
+        $this->connect->exec($sql);
+    }
+
+    /**
+     * 编译SQL语句
+     */
+    public function buildQuery()
+    {
+        switch ($this->action_type) {
+            case self::ACTION_TYPE_SELECT:
+                $this->query = sprintf(
+                    'select %s from `%s` where %s %s %s',
+                    $this->options['field'],
+                    $this->options['table'],
+                    join(' and ', $this->options['where']) ?: '1=1',
+                    $this->options['order'],
+                    $this->options['limit']
+                );
+                break;
+            case self::ACTION_TYPE_INSERT:
+                $this->query = sprintf(
+                    'insert into `%s`(%s) values(%s)',
+                    $this->options['table'],
+                    join(',', $this->options['insert_field']),
+                    join(',', $this->options['insert_values'])
+                );
+                break;
+            case self::ACTION_TYPE_UPDATE:
+                $this->query = sprintf(
+                    'update `%s` set %s where %s',
+                    $this->options['table'],
+                    join(',', $this->options['update_set']),
+                    join(' and ', $this->options['where']) ?: '1=1'
+                );
+                break;
+            case self::ACTION_TYPE_DELETE:
+                if (count($this->options['where']) <= 0) {
+                    throw new \Exception('删除时必须附加条件');
+                }
+                $this->query = sprintf(
+                    'delete from `%s` where %s',
+                    $this->options['table'],
+                    join(' and ', $this->options['where'])
+                );
+                break;
+            case 0:
+            default:
+                throw new \Exception('查询方式不正确');
+        }
+        $this->action_type = 0;
+        return $this->query;
+    }
+
+    private function clear()
+    {
+        $this->options = array_merge($this->options, [
+            'where' => [],
+            'field' => '*',
+            'limit' => '',
+            'order' => '',
+            'parameter' => [],
+            'insert_field' => [],
+            'insert_values' => [],
+            'update_set' => []
+        ]);
+    }
+
+
+}
