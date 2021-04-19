@@ -57,7 +57,27 @@ class DbDrive
             if (is_int($k)) {
                 $k = $k + 1;
             }
-            $this->statement->bindValue($k, $item);
+            if (strstr($item, '::')) {
+                list($value, $type) = explode('::', $item);
+                switch ($type) {
+                    case 'int':
+                    case 'bigint':
+                    case 'smallint':
+                    case 'tinyint':
+                        $type = \PDO::PARAM_INT;
+                        break;
+                    case 'datetime':
+                        $type = \PDO::ATTR_DEFAULT_STR_PARAM;
+                        break;
+                    default:
+                        $type = \PDO::PARAM_STR;
+                        break;
+                }
+                $this->statement->bindValue($k, $value, $type);
+            } else {
+                $this->statement->bindValue($k, $item);
+            }
+
         }
 
         return $this;
@@ -69,7 +89,7 @@ class DbDrive
      */
     public function exec($sql)
     {
-       return $this->pdo->exec($sql);
+        return $this->pdo->exec($sql);
     }
 
     /**
@@ -159,4 +179,29 @@ class DbDrive
     {
         return $this->statement->rowCount();
     }
+
+    /**
+     * 开始事务
+     * @return bool
+     */
+    public function beginTransaction() {
+        return $this->pdo->beginTransaction();
+    }
+
+    /**
+     * 提交事务
+     * @return bool
+     */
+    public function commitTransaction() {
+        return $this->pdo->commit();
+    }
+
+    /**
+     * 事务回滚
+     * @return bool
+     */
+    public function rollBackTransaction() {
+        return $this->pdo->rollBack();
+    }
+
 }

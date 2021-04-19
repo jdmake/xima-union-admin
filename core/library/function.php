@@ -11,7 +11,7 @@
 if (!function_exists('input')) {
     function input($key, $default = '')
     {
-        $value = isset($_REQUEST[$key]) ? $_REQUEST[$key] : $default;
+        $value = isset($_REQUEST[$key]) ? $_REQUEST[$key] : (@json_decode(@file_get_contents('php://input'), true)[$key] ?: $default );
         return filter_words($value);
     }
 }

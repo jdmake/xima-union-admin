@@ -108,7 +108,7 @@ class Db
      */
     public function setParameter(array $parameter = [])
     {
-        $this->options['parameter'] = $parameter;
+        $this->options['parameter'] = array_merge($this->options['parameter'], $parameter);
         return $this;
     }
 
@@ -152,10 +152,13 @@ class Db
     {
         $this->action_type = Db::ACTION_TYPE_SELECT;
         $this->buildQuery();
+
         // 执行查询
         $this->connect->query($this->query, $this->options['parameter']);
         $this->clear();
-        return $this->connect->getfetchAll();
+        $res = $this->connect->getfetchAll();
+
+        return $res;
     }
 
     /**
@@ -173,10 +176,15 @@ class Db
      */
     function insert(array $data = [])
     {
-        foreach ($data as $k => $item) {
-            $this->options['parameter'][$k] = $item;
-            $this->options['insert_values'][] = ':' . $k;
+        $schema = $this->querySchema();
+        // 设置参数
+        $parameter = [];
+        foreach ($data as $name => $value) {
+            $parameter[$name] = "{$value}::{$schema[$name]}";
+            $this->options['insert_values'][] = ':' . $name;
         }
+        $this->setParameter($parameter);
+
         $this->options['insert_field'] = array_keys($data);
 
         $this->action_type = Db::ACTION_TYPE_INSERT;
@@ -194,10 +202,15 @@ class Db
      */
     public function update(array $data = [])
     {
-        foreach ($data as $k => $item) {
-            $this->options['parameter'][$k] = $item;
-            $this->options['update_set'][] = "{$k}=:{$k}";
+        $schema = $this->querySchema();
+        // 设置参数
+        $parameter = [];
+        foreach ($data as $name => $value) {
+            $parameter[$name] = "{$value}::{$schema[$name]}";
+            $this->options['update_set'][] = "{$name}=:{$name}";
         }
+        $this->setParameter($parameter);
+
         $this->action_type = Db::ACTION_TYPE_UPDATE;
         $this->buildQuery();
 
@@ -239,7 +252,7 @@ class Db
 
         $path = '';
         if (!isset($option['style'])) {
-            $path = isset($option['path']) ? $option['path'] : $path_info . '?do=' . CURRENT_DO . '&' . @http_build_query($option['query']);
+            $path = isset($option['path']) ? $option['path'] : $path_info . '?do=' . '' . '&' . @http_build_query($option['query']);
         }
 
         $limit_page = ($page == 1 ? 0 : $page - 1) * $limit;
@@ -254,46 +267,51 @@ class Db
 
         return [
             'items' => $results,
-            'page_size' => ceil($total / $limit),
+            'pageSize' => ceil($total / $limit),
             'total' => $total,
+            'limit' => $limit,
             'page' => call_user_func(function () use ($path, $page, $total, $limit, $option) {
-                $curPage = isset($page) ? $page : 1;
-                //最大的页码数
-                $rowsPerPage = 10;
-                //获取数据
-                $offset = ($curPage - 1) * $rowsPerPage;
-                //总页数
-                $totalpage = ceil($total / $limit);
-                //存储页面字符串
-                $pageNumString = '';
-                if ($curPage <= 5) {
-                    $begin = 1;
-                    $end = $totalpage >= 10 ? 10 : $totalpage;
-                } else {
-                    $end = $curPage + 5 > $totalpage ? $totalpage : $curPage + 5;
-                    $begin = $end - 9 <= 1 ? 1 : $end - 9;
-                }
-                //上一页
-                $prev = $curPage - 1 <= 1 ? 1 : $curPage - 1;
-                $pageNumString .= "<li><a href='{$path}" . (!isset($option['style']) ? '&page=1' : str_replace('{page}', '1', $option['style'])) . "'>首页</a></li>";
-                $pageNumString .= "<li><a href='{$path}" . (!isset($option['style']) ? '&page=' . $prev : str_replace('{page}', $prev, $option['style'])) . "'>上一页</a></li>";
-
-                //根据起始页与终止页将当前页面的页码显示出来
-                for ($i = $begin; $i <= $end; $i++) {
-                    //使用if实现高亮显示当前点击的页码
-                    //这是 bootstrap的全局样式
-                    if ($curPage == $i) {
-                        $pageNumString .= "<li class='active'><a href='" . (!isset($option['style']) ? '&page=' . $i : str_replace('{page}', $i, $option['style'])) . "'>$i</a></li>";
+                if(isset($option['return_page']) && $option['return_page']) {
+                    $curPage = isset($page) ? $page : 1;
+                    //最大的页码数
+                    $rowsPerPage = 10;
+                    //获取数据
+                    $offset = ($curPage - 1) * $rowsPerPage;
+                    //总页数
+                    $totalpage = ceil($total / $limit);
+                    //存储页面字符串
+                    $pageNumString = '';
+                    if ($curPage <= 5) {
+                        $begin = 1;
+                        $end = $totalpage >= 10 ? 10 : $totalpage;
                     } else {
-                        $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $i : str_replace('{page}', $i, $option['style'])) . "'>$i</a></li>";
+                        $end = $curPage + 5 > $totalpage ? $totalpage : $curPage + 5;
+                        $begin = $end - 9 <= 1 ? 1 : $end - 9;
                     }
-                }
-                //实现下一页
-                $next = $curPage + 1 >= $totalpage ? $totalpage : $curPage + 1;
-                $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $next : str_replace('{page}', $next, $option['style'])) . "'>下一页</a></li>";
-                $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $totalpage : str_replace('{page}', $totalpage, $option['style'])) . "'>尾页</a></li>";
+                    //上一页
+                    $prev = $curPage - 1 <= 1 ? 1 : $curPage - 1;
+                    $pageNumString .= "<li><a href='{$path}" . (!isset($option['style']) ? '&page=1' : str_replace('{page}', '1', $option['style'])) . "'>首页</a></li>";
+                    $pageNumString .= "<li><a href='{$path}" . (!isset($option['style']) ? '&page=' . $prev : str_replace('{page}', $prev, $option['style'])) . "'>上一页</a></li>";
 
-                return $pageNumString;
+                    //根据起始页与终止页将当前页面的页码显示出来
+                    for ($i = $begin; $i <= $end; $i++) {
+                        //使用if实现高亮显示当前点击的页码
+                        //这是 bootstrap的全局样式
+                        if ($curPage == $i) {
+                            $pageNumString .= "<li class='active'><a href='" . (!isset($option['style']) ? '&page=' . $i : str_replace('{page}', $i, $option['style'])) . "'>$i</a></li>";
+                        } else {
+                            $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $i : str_replace('{page}', $i, $option['style'])) . "'>$i</a></li>";
+                        }
+                    }
+                    //实现下一页
+                    $next = $curPage + 1 >= $totalpage ? $totalpage : $curPage + 1;
+                    $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $next : str_replace('{page}', $next, $option['style'])) . "'>下一页</a></li>";
+                    $pageNumString .= "<li><a href='" . (!isset($option['style']) ? '&page=' . $totalpage : str_replace('{page}', $totalpage, $option['style'])) . "'>尾页</a></li>";
+
+                    return $pageNumString;
+                }else {
+                    return null;
+                }
             })
         ];
     }
@@ -318,7 +336,7 @@ class Db
                     'select %s from `%s` where %s %s %s',
                     $this->options['field'],
                     $this->options['table'],
-                    join(' and ', $this->options['where']) ?: '1=1',
+                    str_replace('and or', 'or', join(' and ', $this->options['where']) ?: '1=1'),
                     $this->options['order'],
                     $this->options['limit']
                 );
@@ -336,7 +354,7 @@ class Db
                     'update `%s` set %s where %s',
                     $this->options['table'],
                     join(',', $this->options['update_set']),
-                    join(' and ', $this->options['where']) ?: '1=1'
+                    str_replace('and or', 'or', join(' and ', $this->options['where']) ?: '1=1')
                 );
                 break;
             case self::ACTION_TYPE_DELETE:
@@ -346,7 +364,7 @@ class Db
                 $this->query = sprintf(
                     'delete from `%s` where %s',
                     $this->options['table'],
-                    join(' and ', $this->options['where'])
+                    str_replace('and or', 'or', join(' and ', $this->options['where']) ?: '1=1')
                 );
                 break;
             case 0:
@@ -369,6 +387,47 @@ class Db
             'insert_values' => [],
             'update_set' => []
         ]);
+    }
+
+    public function getQuery()
+    {
+        return $this->buildQuery();
+    }
+
+    public function querySchema()
+    {
+        $this->connect->query("select `COLUMN_NAME`,`DATA_TYPE` from information_schema.columns where table_name='{$this->options['table']}'");
+        $res = $this->connect->getfetchAll();
+        $result = [];
+        foreach ($res as $re) {
+            $result[$re['COLUMN_NAME']] = $re['DATA_TYPE'];
+        }
+        return $result;
+    }
+
+
+    /**
+     * 开始事务
+     * @return bool
+     */
+    public function beginTransaction() {
+        return $this->connect->beginTransaction();
+    }
+
+    /**
+     * 提交事务
+     * @return bool
+     */
+    public function commit() {
+        return $this->connect->commitTransaction();
+    }
+
+    /**
+     * 事务回滚
+     * @return bool
+     */
+    public function rollBack() {
+        return $this->connect->rollBackTransaction();
     }
 
 

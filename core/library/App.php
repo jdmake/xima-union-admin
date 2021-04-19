@@ -38,7 +38,7 @@ class App
         // 加载路由
         $m = strtolower(isset($_GET['m']) ? $_GET['m'] : DEFAULT_MODULE);
         define('CURRENT_MODULE', $m);
-
+        
         $do = isset($_GET['do']) ? $_GET['do'] : 'index.index';
         $split = explode('.', $do);
 

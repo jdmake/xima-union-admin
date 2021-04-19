@@ -22,7 +22,7 @@ class Validation
     /**
      * @param array $error
      */
-    public function addError($error)
+    private function addError($error)
     {
         $this->error[] = $error;
     }

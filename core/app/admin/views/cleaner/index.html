@@ -7,6 +7,7 @@
     {% include 'title' %}
     {% include 'asset' %}
 
+
 </head>
 <body>
 
@@ -20,7 +21,6 @@
             <div class="block">
                 <div class="block-content">
                     <div id="xima-table"></div>
-
                 </div>
             </div>
         </div>
@@ -31,5 +31,112 @@
 
 {% include 'script' %}
 
+
 </body>
+
+<!-- 添加保洁员表单 -->
+<div id="add-cleaner" style="display: none">
+    <div class="block-content">
+        <div class="block-content-header">
+            添加保洁员
+        </div>
+        <div class="block-content-body">
+            <form>
+                <div class="form-group">
+                    <label>用户手机号码</label>
+                    <input name="mobile" type="text" class="form-control" placeholder="请输入用户手机号码">
+                </div>
+                <div style="text-align: right;padding-top: 20px">
+                    <button id="submit-add-cleaner" type="button" class="btn btn-primary">确认添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        $('#submit-add-cleaner').on('click', function () {
+            var form = $(this).parent().parent()
+            $.ajax({
+                url: '?do=cleaner.add',
+                type: 'post',
+                dataType: 'json',
+                data: form.serialize(),
+                success: function (ret) {
+                    form[0].reset()
+                    if(ret.error > 0) {
+                        $.notify(ret.msg, {type: "danger", align:"center", verticalAlign:"top"});
+                    }else {
+                        $.notify(ret.msg, {type: "success", align:"center", verticalAlign:"top"});
+                        window.$table.ajax.reload()
+                        layer.closeAll()
+                    }
+                }
+            })
+        })
+    </script>
+</div>
+
+<script>
+
+    $(function () {
+        xima_tools.table({
+            el: '#xima-table',
+            columns: [
+                {
+                    orderable: false,
+                    mDataProp: 'id',
+                    title: '<label><input id="check-all" type="checkbox"></label>',
+                    width: 60,
+                    mRender: function (val) {
+                        return '<label style="padding-left: 8px"><input class="sub-checkbox" type="checkbox" value="' + val + '"></label>'
+                    }
+                },
+                {
+                    mDataProp: 'uid',
+                    title: 'UID'
+                },
+                {
+                    mDataProp: 'status',
+                    title: '状态',
+                    mRender: function (val) {
+                        if(val === 1) {
+                            return '待培训'
+                        }else {
+                            return '已上岗'
+                        }
+                    }
+                }
+            ],
+            tools: [
+                {
+                    title: '添加保洁',
+                    class: 'btn-primary',
+                    action: function () {
+                        xima_tools.open({
+                            el: '#add-cleaner',
+                            area: ['30%', '40%']
+                        })
+                    }
+                },
+                {
+                    title: '批量删除',
+                    class: 'btn-default',
+                    action: function () {
+                        var id = []
+                        $.each($('.sub-checkbox:checked'), function () {
+                            id.push($(this).val())
+                        });
+                        $.ajax({
+                            url: '?do=cleaner.delete',
+                            type: 'post',
+                            dataType: 'json',
+                            data: {
+                                ids: id
+                            }
+                        });
+                    }
+                }
+            ]
+        })
+    })
+</script>
 </html>

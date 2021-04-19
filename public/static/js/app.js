@@ -20,10 +20,12 @@ $(function () {
         });
 
     // check-all
-    $('#check-all').on('click', function () {
-        var bischecked = $(this).is(':checked');
-        bischecked ? $('.sub-checkbox').prop('checked', true) : $('.sub-checkbox').prop('checked', false)
-    });
+    setTimeout(function () {
+        $('#check-all').on('click', function () {
+            var bischecked = $(this).is(':checked');
+            bischecked ? $('.sub-checkbox').prop('checked', true) : $('.sub-checkbox').prop('checked', false)
+        });
+    }, 500)
 
     // confirm
     $('.confirm').on('click', function (e) {

@@ -11,5 +11,10 @@ namespace app\admin\controller\common;
 
 abstract class AbsController
 {
-
+    protected function json(array $array)
+    {
+        header('content-type:application/json;charset=utf-8');
+        echo json_encode($array);
+        exit();
+    }
 }
